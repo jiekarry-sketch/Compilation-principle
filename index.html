@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container container-main">
+    <!-- 头部标题 -->
+    <div class="header-container">
+        <h1><i class="fas fa-project-diagram me-3"></i>LR(0) 文法分析器</h1>
+        <p class="lead">在线交互版 - 输入文法，实时生成分析表、DFA图和测试结果</p>
+    </div>
+
+    <div class="row">
+        <!-- 左栏：输入区域 (占4份) -->
+        <div class="col-lg-4 col-md-5 left-column">
+            <div class="main-card">
+                <div class="card-header-custom">
+                    <i class="fas fa-keyboard"></i>文法输入
+                </div>
+                <div class="card-body-custom">
+                    <!-- 文法输入 -->
+                    <div class="input-group-custom">
+                        <div class="input-label">
+                            <i class="fas fa-code"></i>文法规则（每行一个产生式）
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">格式：<code>非终结符 -> 符号序列 | 可选分支</code></small>
+                        </div>
+                        <div class="example-grammar">
+                            S -> a A | b B<br>
+                            A -> c A | d<br>
+                            B -> c B | d
+                        </div>
+                        <textarea id="grammarInput" class="form-control form-control-custom" rows="6"
+                                  placeholder="请输入文法规则，例如：&#10;E -> E + T | T&#10;T -> T * F | F&#10;F -> ( E ) | +">S -> a A | b B
+A -> c A | d
+B -> c B | d</textarea>
+                    </div>
+
+                    <!-- 测试输入 -->
+                    <div class="input-group-custom">
+                        <div class="input-label">
+                            <i class="fas fa-vial"></i>测试输入串（每行一个）
+                            <span id="testCount" class="badge bg-secondary ms-2">0</span>
+                        </div>
+                        <small class="text-muted d-block mb-2">输入要分析的字符串，每行一个</small>
+                        <textarea id="testInputs" class="form-control form-control-custom" rows="3"
+                                  placeholder="例如：&#10;bccd&#10;ad&#10;abd">bccd
+ad
+abd</textarea>
+                    </div>
+
+                    <!-- 示例文法 -->
+                    <div class="input-group-custom">
+                        <div class="input-label">
+                            <i class="fas fa-lightbulb"></i>快速选择示例文法
+                        </div>
+                        <div class="example-btn-group">
+                            <button type="button" class="example-btn" data-grammar="S -> a A | b B&#10;A -> c A | d&#10;B -> c B | d">
+                                简单文法
+                            </button>
+                            <button type="button" class="example-btn" data-grammar="S -> E&#10;E -> ( E + E ) | ( E * E ) | +">
+                                表达式文法
+                            </button>
+                            <button type="button" class="example-btn" data-grammar="A -> a A b | a A d | @">
+                                带空串文法
+                            </button>
+                            <button type="button" class="example-btn" data-grammar="S -> A c&#10;S -> a c&#10;A -> a">
+                                冲突测试
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="action-buttons-container">
+                        <button id="analyzeBtn" class="btn btn-primary-custom">
+                            <i class="fas fa-play me-2"></i>开始分析
+                        </button>
+                        <button id="resetBtn" class="btn btn-outline-custom">
+                            <i class="fas fa-redo me-2"></i>重置输入
+                        </button>
+                    </div>
+
+                    <!-- 加载动画 -->
+                    <div id="loading" class="loading-container" style="display: none;">
+                        <div class="spinner-custom"></div>
+                        <p class="text-muted mt-2">正在分析文法，请稍候...</p>
+                    </div>
+
+                    <!-- 紧凑的使用说明 -->
+                    <div class="instructions-compact">
+                        <div class="instruction-item">
+                            <i class="fas fa-check text-success"></i>
+                            <span>使用 <code>-></code> 或 <code>=</code> 分隔左右部</span>
+                        </div>
+                        <div class="instruction-item">
+                            <i class="fas fa-check text-success"></i>
+                            <span>使用 <code>|</code> 分隔多个右部</span>
+                        </div>
+                        <div class="instruction-item">
+                            <i class="fas fa-check text-success"></i>
+                            <span>非终结符通常用大写字母</span>
+                        </div>
+                        <div class="instruction-item">
+                            <i class="fas fa-check text-success"></i>
+                            <span>空串用 <code>@</code> 表示</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右栏：结果显示 (占8份) -->
+        <div class="col-lg-8 col-md-7 right-column">
+            <div class="main-card">
+                <div class="card-header-custom">
+                    <i class="fas fa-chart-bar"></i>分析结果
+                </div>
+                <div class="card-body-custom">
+                    <!-- 初始提示 -->
+                    <div id="resultsArea" class="text-center py-5" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                        <i class="fas fa-code-branch fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted mb-2">等待分析</h5>
+                        <p class="text-muted">请在左侧输入文法规则，然后点击"开始分析"按钮</p>
+                    </div>
+
+                    <!-- 文法判定结果 -->
+                    <div id="grammarResult" style="display: none;"></div>
+
+                    <!-- 结果选项卡 -->
+                    <div id="resultsContainer" style="display: none; height: 100%;">
+                        <ul class="nav nav-tabs nav-tabs-custom" id="resultsTab">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#tabGrammar">
+                                    <i class="fas fa-list-ol me-2"></i>文法
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#tabDFA">
+                                    <i class="fas fa-project-diagram me-2"></i>DFA图
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#tabTable">
+                                    <i class="fas fa-table me-2"></i>分析表
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#tabTests">
+                                    <i class="fas fa-vial me-2"></i>测试结果
+                                </a>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content tab-content-custom">
+                            <!-- 文法标签 -->
+                            <div class="tab-pane fade show active" id="tabGrammar">
+                                <h5 class="mb-3">拓广文法</h5>
+                                <div id="grammarContent" style="overflow-y: auto; height: calc(100% - 50px);"></div>
+                            </div>
+
+                            <!-- DFA图标签 -->
+                            <div class="tab-pane fade" id="tabDFA">
+                                <div id="dfaContent" class="dfa-container">
+                                    <img id="dfaImage" class="dfa-image" alt="DFA状态图" data-bs-toggle="modal" data-bs-target="#imageModal">
+                                    <p class="text-muted mt-3">点击图片可放大查看</p>
+                                </div>
+                            </div>
+
+                            <!-- 分析表标签 -->
+                            <div class="tab-pane fade" id="tabTable">
+                                <div style="display: flex; flex-direction: column;">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="mb-0">LR(0) 分析表</h5>
+                                        <div class="d-flex align-items-center">
+                                        </div>
+                                    </div>
+
+                                    <div class="parsing-table-container">
+                                        <table id="parsingTable" class="parsing-table">
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 测试结果标签 -->
+                            <div class="tab-pane fade" id="tabTests">
+                                <h5 class="mb-3">输入串分析结果</h5>
+                                <div id="testResults" class="test-results-container">
+                                    <!-- 测试结果将通过JS动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图片模态框 -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalLabel">LR(0) DFA 状态图</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalDfaImage" class="img-fluid" alt="DFA状态图" style="max-height: 70vh; object-fit: contain;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-custom" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary-custom" id="downloadImageBtn">
+                    <i class="fas fa-download me-2"></i>下载图片
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}
